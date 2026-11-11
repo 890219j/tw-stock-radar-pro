@@ -1,0 +1,36 @@
+name: Update Taiwan Stock Data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '20 9 * * 1-5'
+    - cron: '20 11 * * 1-5'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: taiwan-stock-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Fetch stock data
+        run: python scripts/fetch_stock_snapshot.py
+      - name: Save stock data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add snapshots/latest.csv snapshots/history.csv snapshots/metadata.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update daily stock data"
+            git push
+          fi

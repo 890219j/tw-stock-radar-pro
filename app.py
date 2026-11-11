@@ -10,6 +10,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 from data import listed_daily,institutional,mis_quotes,recent_trading_days
+from snapshot_store import read_snapshot, read_history
 
 st.set_page_config(page_title='台股資金雷達 PRO',page_icon='📡',layout='wide')
 DB=Path(os.environ.get('RADAR_DB_PATH', str(Path(tempfile.gettempdir()) / 'stock_radar_pro.db')))
@@ -28,6 +29,9 @@ def historical():
 
 @st.cache_data(ttl=600,show_spinner=False)
 def load_latest():
+    saved=read_snapshot()
+    if saved is not None:
+        return saved
     errors=[]
     for day in recent_trading_days(9):
         try:
@@ -51,9 +55,15 @@ try:
 except Exception as e:
     st.error(str(e)); st.stop()
 try:
-    inst=institutional(day)
-    df=df.merge(inst,on='code',how='left')
-    inst_ok=True
+    if {'foreign','trust','dealer'}.issubset(df.columns):
+        inst_ok=bool(
+            df[['foreign','trust','dealer']]
+            .notna().any().any()
+        )
+    else:
+        inst=institutional(day)
+        df=df.merge(inst,on='code',how='left')
+        inst_ok=True
 except Exception as e:
     inst_ok=False
     st.warning(f'法人資料暫時不可用：{e}。不會將缺失值當成零。')
@@ -63,7 +73,9 @@ df['inst_net']=df[['foreign','trust','dealer']].sum(axis=1,min_count=3)
 df['turnover_100m']=df.turnover/1e8
 for c in ['foreign','trust','dealer','inst_net']: df[c+'_lots']=df[c]/1000
 save_history(day,df)
-hist=historical()
+hist=read_history()
+if hist.empty:
+    hist=historical()
 previous=hist[hist.day<day.isoformat()]
 if len(previous):
     base=previous.sort_values('day').groupby('code').tail(5).groupby('code').turnover.agg(['mean','count']).reset_index()
