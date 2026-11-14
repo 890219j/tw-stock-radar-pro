@@ -1,36 +1,48 @@
-name: Update Taiwan Stock Data
+name: Update Taiwan Stocks
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '20 9 * * 1-5'
-    - cron: '20 11 * * 1-5'
+    - cron: '30 12 * * 1-5'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: taiwan-stock-data
+  group: stock-daily-update
   cancel-in-progress: false
 
 jobs:
   update:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Fetch stock data
-        run: python scripts/fetch_stock_snapshot.py
-      - name: Save stock data
+
+      - name: Install packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install yfinance pandas numpy
+
+      - name: Update stock history
+        run: python update_stocks.py
+
+      - name: Save updated data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add snapshots/latest.csv snapshots/history.csv snapshots/metadata.json
+          git add -f ai_data/*.csv
           if ! git diff --cached --quiet; then
-            git commit -m "Update daily stock data"
+            git commit -m "Auto update stock history"
             git push
+          else
+            echo "No changes"
           fi
