@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from black_gold_theme import apply_black_gold_theme
 
 from data import (
     listed_daily,
@@ -27,6 +28,8 @@ st.set_page_config(
     page_icon="📡",
     layout="wide",
 )
+
+apply_black_gold_theme()
 
 DB = Path(
     os.environ.get(
@@ -293,35 +296,66 @@ else:
     filtered = df
 
 
+
+# SEARCH_RESULT_FIX_V1
+if search.strip():
+    st.subheader("🔎 個股搜尋結果")
+
+    if filtered.empty:
+        st.warning("找不到符合條件的上市股票")
+    else:
+        columns = [
+            "code", "name", "close", "pct",
+            "turnover_100m", "inst_net_lots"
+        ]
+        result = filtered[columns].copy()
+        result = result.rename(columns={
+            "code": "代號",
+            "name": "股票名稱",
+            "close": "收盤價",
+            "pct": "漲跌幅 (%)",
+            "turnover_100m": "成交額 (億元)",
+            "inst_net_lots": "法人買賣超 (張)"
+        })
+
+        st.dataframe(
+            result,
+            hide_index=True,
+            use_container_width=True
+        )
+        st.caption(
+            "以上為資料交易日的行情，"
+            "不是即時成交價。"
+        )
+
 # ===== 市場總覽 =====
 
-m1, m2, m3, m4 = st.columns(4)
+# MOBILE_METRICS_2X2
+metric_rows = [
+    st.columns(2),
+    st.columns(2),
+]
+m1, m2 = metric_rows[0]
+m3, m4 = metric_rows[1]
 
 m1.metric(
     "上市股票成交總額",
     f"{df.turnover.sum() / 1e8:,.0f} 億",
 )
-
 m2.metric(
     "法人合計淨買賣超",
-    (
-        f"{df.inst_net.sum() / 1000:+,.0f} 張"
-        if inst_ok
-        else "資料未公布"
-    ),
+    f"{df.inst_net.sum() / 1000:+,.0f} 張"
+    if inst_ok else "資料未公布",
 )
-
 m3.metric(
     "上漲 / 下跌",
     f"{int((df.pct > 0).sum())} / "
     f"{int((df.pct < 0).sum())}",
 )
-
 m4.metric(
     "當日股票數",
     f"{len(df):,}",
 )
-
 
 # ===== 七大分析頁籤 =====
 
@@ -333,6 +367,7 @@ tabs = st.tabs([
     "🚨 警報與觀察名單",
     "📚 歷史資料",
     "📈 個股 K 線分析",
+    "🤖 AI 智慧選股",
 ])
 
 
@@ -771,3 +806,8 @@ st.caption(
     "法人淨買賣超為股數差額。"
     "技術指標不能保證未來股價走勢。"
 )
+
+# ===== 8. AI 智慧選股 =====
+with tabs[7]:
+    from ai_predict_view import render_ai_screener
+    render_ai_screener(df, day)
